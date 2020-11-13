@@ -124,17 +124,75 @@ func Exec(env map[string]string, stdout, stderr io.Writer, cmd string, args ...s
 }
 
 func run(env map[string]string, stdout, stderr io.Writer, cmd string, args ...string) (ran bool, code int, err error) {
-	c := exec.Command(cmd, args...)
-	c.Env = os.Environ()
+	c := PreparedCommand{exec.Command(cmd, args...)}
+	c.Cmd.Env = os.Environ()
 	for k, v := range env {
-		c.Env = append(c.Env, k+"="+v)
+		c.Cmd.Env = append(c.Cmd.Env, k+"="+v)
 	}
-	c.Stderr = stderr
-	c.Stdout = stdout
-	c.Stdin = os.Stdin
-	log.Println("exec:", cmd, strings.Join(args, " "))
-	err = c.Run()
+	c.Cmd.Stderr = stderr
+	c.Cmd.Stdout = stdout
+	c.Cmd.Stdin = os.Stdin
+	return c.Run()
+}
+
+type PreparedCommand struct {
+	Cmd *exec.Cmd
+}
+
+// Command creates a default command. Stdout is logged in verbose mode. Stderr
+// is sent to os.Stderr.
+func Command(cmd string, args ...string) PreparedCommand {
+	var output io.Writer
+	if mg.Verbose() {
+		output = os.Stdout
+	}
+	c := exec.Command(cmd, args...)
+	c.Stdout = output
+	c.Stderr = os.Stderr
+	return PreparedCommand{Cmd: c}
+}
+
+// In sets the working directory of the command.
+func (c PreparedCommand) In(dir string) PreparedCommand {
+	c.Cmd.Dir = dir
+	return c
+}
+
+// Stdout directs stdout from the command.
+func (c PreparedCommand) Stdout(stdout io.Writer) PreparedCommand {
+	c.Cmd.Stdout = stdout
+	return c
+}
+
+// Stderr directs stderr from the command.
+func (c PreparedCommand) Stderr(stdout io.Writer) PreparedCommand {
+	c.Cmd.Stdout = stdout
+	return c
+}
+
+// Runs a command silently, without logging stdout/stderr.
+func (c PreparedCommand) Silent() PreparedCommand {
+	c.Cmd.Stdout = nil
+	c.Cmd.Stderr = nil
+	return c
+}
+
+// Run executes the prepared command, returning if the command was run and its
+// exit code.
+func (c PreparedCommand) Run() (ran bool, code int, err error) {
+	if mg.Verbose() {
+		log.Println("exec:", c.Cmd.Path, strings.Join(c.Cmd.Args, " "))
+	}
+	err = c.Cmd.Run()
 	return CmdRan(err), ExitStatus(err), err
+}
+
+// Output executes the prepared command, returning stdout.
+func (c PreparedCommand) Output() (string, error) {
+	buf := &bytes.Buffer{}
+	c.Cmd.Stdout = buf
+	_, _, err := c.Run()
+	return strings.TrimSuffix(buf.String(), "\n"), err
 }
 
 // CmdRan examines the error to determine if it was generated as a result of a

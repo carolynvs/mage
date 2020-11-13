@@ -2,7 +2,10 @@ package sh
 
 import (
 	"bytes"
+	"io/ioutil"
+	"log"
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -69,4 +72,77 @@ func TestAutoExpand(t *testing.T) {
 		t.Fatalf(`Expected "baz" but got %q`, s)
 	}
 
+}
+
+func TestPreparedCommand_Run(t *testing.T) {
+	buf := &bytes.Buffer{}
+	c := Command("bash", "-c", "echo hello world")
+	c.Cmd.Stdout = buf
+
+	_, _, err := c.Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := buf.String()
+
+	want := "hello world\n"
+	if got != want {
+		t.Fatalf("want: %q got: %q", want, got)
+	}
+}
+
+func TestPreparedCommand_Output(t *testing.T) {
+	got, err := Command("bash", "-c", "echo hello world").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := "hello world"
+	if got != want {
+		t.Fatalf("want: %q got: %q", want, got)
+	}
+}
+
+func ExamplePreparedCommand_Stdout() {
+	_, _, err := Command("bash", "-c", "echo hello world").Stdout(os.Stdout).Run()
+	if err != nil{
+		log.Fatal(err)
+	}
+	// Output: hello world
+}
+
+func ExamplePreparedCommand_In() {
+	tmp, err := ioutil.TempDir("", "mage")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	contents := `package main
+
+import "fmt"
+
+func main() {
+	fmt.Println("hello world")
+}
+`
+	err = ioutil.WriteFile(filepath.Join(tmp, "test_main.go"), []byte(contents), 0644)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Run `go run test_main.go` in /tmp
+	_, _, err = Command("go", "run", "test_main.go").Stdout(os.Stdout).In(tmp).Run()
+	if err != nil {
+		log.Fatal(err)
+	}
+	// Output: hello world
+}
+
+func ExamplePreparedCommand_Silent() {
+	_, _, err := Command("bash", "-c", "echo hello world").Silent().Run()
+	if err != nil {
+		log.Fatal(err)
+	}
+	// Output:
 }
