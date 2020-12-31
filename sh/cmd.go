@@ -149,7 +149,19 @@ func Command(cmd string, args ...string) PreparedCommand {
 	c := exec.Command(cmd, args...)
 	c.Stdout = output
 	c.Stderr = os.Stderr
+	c.Env = os.Environ()
 	return PreparedCommand{Cmd: c}
+}
+
+// Env defines additional environment variables for the command.
+// All ambient environment variables are included by default.
+// Example:
+//  c.Env("X=1", "Y=2")
+func (c PreparedCommand) Env(vars ...string) PreparedCommand {
+	for _, v := range vars {
+		c.Cmd.Env = append(c.Cmd.Env, v)
+	}
+	return c
 }
 
 // In sets the working directory of the command.
