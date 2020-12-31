@@ -153,6 +153,12 @@ func Command(cmd string, args ...string) PreparedCommand {
 	return PreparedCommand{Cmd: c}
 }
 
+// Args appends additional arguments to the command.
+func (c PreparedCommand) Args(args ...string) PreparedCommand {
+	c.Cmd.Args = append(c.Cmd.Args, args...)
+	return c
+}
+
 // Env defines additional environment variables for the command.
 // All ambient environment variables are included by default.
 // Example:
@@ -196,7 +202,40 @@ func (c PreparedCommand) Run() (ran bool, code int, err error) {
 		log.Println("exec:", c.Cmd.Path, strings.Join(c.Cmd.Args, " "))
 	}
 	err = c.Cmd.Run()
+
+	env := make(map[string]string, len(c.Cmd.Env))
+	for _, envVar := range c.Cmd.Env {
+		parts := strings.SplitAfterN(envVar, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		env[parts[0]] = parts[1]
+	}
+	// TODO: implement sh.Exec here
+	expand := func(s string) string {
+		return env[s]
+	}
+	cmd = os.Expand(cmd, expand)
+	for i := range args {
+		args[i] = os.Expand(args[i], expand)
+	}
+	ran, code, err := run(env, stdout, stderr, cmd, args...)
+	if err == nil {
+		return true, nil
+	}
+	if ran {
+		return ran, mg.Fatalf(code, `running "%s %s" failed with exit code %d`, cmd, strings.Join(args, " "), code)
+	}
+	return ran, fmt.Errorf(`failed to run "%s %s: %v"`, cmd, strings.Join(args, " "), err)
+
 	return CmdRan(err), ExitStatus(err), err
+}
+
+// RunV is like Run, but always sends the command's stdout to os.Stdout.
+func (c PreparedCommand) RunV() error {
+	c.Stdout(os.Stdout)
+	_, _, err := c.Run()
+	return err
 }
 
 // Output executes the prepared command, returning stdout.
