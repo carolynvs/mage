@@ -28,6 +28,23 @@ func TestPreparedCommand_Run(t *testing.T) {
 	}
 }
 
+func TestPreparedCommand_CollapseArgs(t *testing.T) {
+	err := Command("go", "", "run", "", "echo.go", "hello world", "").Run()
+	if err == nil {
+		t.Fatal("expected empty arguments to be preserved in the constructor")
+	}
+
+	err = Command("go", "run").Args("", "echo.go", "", "hello world", "").Run()
+	if err == nil {
+		t.Fatal("expected empty arguments to be preserved when Args is called")
+	}
+
+	err = Command("go", "", "run", "", "echo.go", "hello world", "").CollapseArgs().Run()
+	if err != nil {
+		t.Fatal("expected empty arguments to be removed")
+	}
+}
+
 func TestPreparedCommand_Run_Verbose(t *testing.T) {
 	os.Setenv(mg.VerboseEnv, "true")
 	defer os.Unsetenv(mg.VerboseEnv)

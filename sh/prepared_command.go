@@ -36,6 +36,21 @@ func (c PreparedCommand) Args(args ...string) PreparedCommand {
 	return c
 }
 
+// CollapseArgs removes empty arguments from the argument list.
+//
+// This is helpful when sometimes a flag should be specified and
+// sometimes it shouldn't.
+func (c PreparedCommand) CollapseArgs() PreparedCommand {
+	result := make([]string, 0, len(c.Cmd.Args))
+	for _, arg := range c.Cmd.Args {
+		if arg != "" {
+			result = append(result, arg)
+		}
+	}
+	c.Cmd.Args = result
+	return c
+}
+
 // Env defines additional environment variables for the command.
 // All ambient environment variables are included by default.
 // Example:
